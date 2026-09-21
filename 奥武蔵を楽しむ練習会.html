@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#166534">
+<title>奥武蔵を楽しむ練習会</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f6f7;color:#111827;font-family:system-ui,-apple-system,"Segoe UI","Noto Sans JP",sans-serif;font-size:18px}
+main{max-width:920px;margin:auto;padding:14px}
+h1{font-size:1.8rem;margin:4px 0 16px;color:#111827;font-weight:900}
+.card{background:#fff;border:1px solid #d8e1e5;border-radius:14px;padding:15px;margin-bottom:13px}
+.top{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-weight:800;margin-bottom:7px;font-size:1.05rem;color:#111827}
+select{font-size:1.25rem;font-weight:700;padding:12px 8px;min-height:52px;border:2px solid #7b8b94;border-radius:10px;background:#fff;color:#111827}
+.time24{display:grid;grid-template-columns:1fr auto 1fr;gap:5px;align-items:center}
+.time24 select{width:100%}.time24 b{text-align:center}
+.goal{font-size:2rem;font-weight:800;color:#0f766e}
+.pace{font-size:1.35rem;font-weight:800}
+.muted{font-size:.95rem;color:#374151;line-height:1.6;font-weight:600}
+table{width:100%;border-collapse:collapse}
+th,td{padding:14px 8px;border-bottom:1px solid #d5dde1;text-align:left;vertical-align:middle;color:#111827}td:first-child{font-size:1.08rem;font-weight:800;line-height:1.35}td:nth-child(2){font-size:1.02rem;font-weight:800;color:#26343c}
+th{font-size:.95rem;color:#26343c;font-weight:900}
+.pred{font-weight:900;white-space:nowrap;font-size:1.2rem;color:#0f766e}
+.rest{background:#fff8df}
+@media(max-width:620px){
+ main{padding:8px}
+ .top{grid-template-columns:1fr 1fr;gap:8px}
+ h1{font-size:1.55rem}
+ th,td{padding:12px 5px}
+ th{font-size:.88rem}
+ td:first-child{font-size:1rem}
+ td:nth-child(2){font-size:.96rem}
+ .time24{gap:4px}
+ .time24 select{font-size:1.12rem;padding:10px 4px;min-height:50px}
+ .goal{font-size:1.85rem}
+ .pred{font-size:1.1rem}
+}
+</style>
+</head>
+<body><main>
+<h1>奥武蔵を楽しむ練習会</h1>
+
+<section class="card top">
+ <div>
+  <label>スタート地点（高麗の郷）スタート時刻</label>
+  <div class="time24"><select id="sh"></select><b>:</b><select id="sm"></select></div>
+ </div>
+ <div>
+  <label>ゴール地点（高麗の郷）予測時刻</label>
+  <div id="goal" class="goal">--:--</div>
+ </div>
+</section>
+
+<section class="card">
+ <div class="pace">実績平均ペース：<span id="pace">--分--秒/km</span></div>
+ <div id="basis" class="muted">途中地点の到着時刻を入力すると計算します。</div>
+</section>
+
+<section class="card">
+<table>
+<thead><tr><th>地点</th><th>距離</th><th>実際の到着時刻</th><th>予測時刻</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+</section>
+
+<section class="card rest">
+ <strong>顔振峠の休憩</strong>
+ <div class="top" style="margin-top:10px">
+  <div><label>休憩開始時刻（顔振峠の到着予測時刻）</label><div id="restStart" class="goal">--:--</div></div>
+  <div><label>休憩終了時刻</label><div class="time24"><select id="rh2"></select><b>:</b><select id="rm2"></select></div></div>
+ </div>
+ <div id="restInfo" class="muted" style="margin-top:8px">休憩終了時刻を入力すると、復路の予測時刻を計算します。</div>
+</section>
+
+<p class="muted">計算方法：入力済みのうち最も距離が進んだ途中地点について、スタートからその地点までの実績時間÷距離で平均ペースを求めます。顔振峠の到着予測時刻をそのまま休憩開始時刻として使用します。休憩開始時刻の再入力は不要です。休憩終了時刻を入力すると休憩時間を自動計算し、顔振峠より後の各地点とゴールの予測時刻に反映します。総距離は33.0kmです。時刻はすべて24時間表示です。</p>
+</main>
+<script>
+const TOTAL=33;
+const P=[
+ ["清流AS（グリーンライン合流地点）往路",7.8],
+ ["ユガテAS 往路",10.0],
+ ["黒山AS往路（一本杉峠）",13.1],
+ ["顔振峠",16.5],
+ ["黒山AS（一本杉峠）復路",19.9],
+ ["ユガテAS 復路",23.0],
+ ["清流AS（グリーンライン合流地点）復路",25.2]
+];
+function fill(h,m,dh="",dm=""){
+ h.innerHTML='<option value="">時</option>'; m.innerHTML='<option value="">分</option>';
+ for(let i=0;i<24;i++){let v=String(i).padStart(2,'0');h.add(new Option(v,v))}
+ for(let i=0;i<60;i++){let v=String(i).padStart(2,'0');m.add(new Option(v,v))}
+ h.value=dh;m.value=dm;
+}
+fill(sh,sm,"06","00"); fill(rh2,rm2);
+const rows=document.getElementById("rows");
+P.forEach((p,i)=>{
+ const tr=document.createElement("tr");
+ tr.innerHTML=`<td>${p[0]}</td><td>${p[1].toFixed(1)} km</td>
+ <td><div class="time24"><select class="ah" data-i="${i}"></select><b>:</b><select class="am" data-i="${i}"></select></div></td>
+ <td class="pred" id="pred${i}">--:--</td>`;
+ rows.appendChild(tr);
+ fill(tr.querySelector(".ah"),tr.querySelector(".am"));
+});
+function val(h,m){if(h.value===""||m.value==="")return null;return Number(h.value)*60+Number(m.value)}
+function clock(x){x=Math.round(x);let m=((x%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0")}
+function calc(){
+ const s=val(sh,sm); if(s===null)return;
+ let best=null;
+ P.forEach((p,i)=>{
+  const h=document.querySelector(`.ah[data-i="${i}"]`),m=document.querySelector(`.am[data-i="${i}"]`);
+  let t=val(h,m); if(t===null)return; if(t<s)t+=1440;
+  // 顔振峠より前の実績地点を基準にペース計算。顔振峠以降の実績入力も、
+  // 休憩終了が入力済みなら休憩時間を除いて移動ペースを計算する。
+  if(!best||p[1]>best.km)best={km:p[1],t:t,i:i};
+ });
+ if(!best){
+  pace.textContent="--分--秒/km"; goal.textContent="--:--"; basis.textContent="途中地点の到着時刻を入力すると計算します。";
+  restStart.textContent="--:--"; restInfo.textContent="休憩終了時刻を入力すると、復路の予測時刻を計算します。";
+  P.forEach((_,i)=>document.getElementById("pred"+i).textContent="--:--"); return;
+ }
+
+ // まず休憩を含めない暫定ペースを求める。
+ let elapsed=best.t-s;
+ let preliminary=elapsed/best.km;
+ let kaoArrival=s+preliminary*16.5;
+
+ // 顔振峠到着予測＝休憩開始時刻
+ restStart.textContent=clock(kaoArrival);
+
+ // 休憩終了時刻が入力された場合だけ休憩時間を算出
+ let rend=val(rh2,rm2), rest=null;
+ if(rend!==null){
+   if(rend<kaoArrival%1440) rend+=1440;
+   // kaoArrivalが翌日にまたがる場合の補正
+   while(rend<kaoArrival) rend+=1440;
+   rest=Math.max(0,rend-kaoArrival);
+ }
+
+ // もし基準地点が顔振峠より後で、休憩終了が入力済みなら、
+ // 実績経過時間から休憩時間を除いて移動ペースを再計算。
+ let movingElapsed=elapsed;
+ if(best.km>16.5 && rest!==null) movingElapsed-=rest;
+ if(movingElapsed<=0)return;
+ let pmin=movingElapsed/best.km;
+
+ // 再計算後の顔振峠到着予測を休憩開始時刻として表示
+ kaoArrival=s+pmin*16.5;
+ restStart.textContent=clock(kaoArrival);
+ if(rend!==null){
+   while(rend<kaoArrival) rend+=1440;
+   rest=Math.max(0,rend-kaoArrival);
+   restInfo.textContent=`休憩時間：${Math.floor(rest/60)}時間${String(Math.round(rest%60)).padStart(2,"0")}分`;
+ } else {
+   restInfo.textContent="休憩終了時刻を入力すると、復路の予測時刻を計算します。";
+ }
+
+ let sec=Math.round(pmin*60), mm=Math.floor(sec/60), ss=sec%60;
+ pace.textContent=`${mm}分${String(ss).padStart(2,"0")}秒/km`;
+ basis.textContent=`計算基準：${P[best.i][0]}（${best.km.toFixed(1)}km）の実績時刻`;
+
+ P.forEach((pt,i)=>{
+   if(pt[1] <= 16.5){
+     document.getElementById("pred"+i).textContent=clock(s+pmin*pt[1]);
+   } else if(rest!==null){
+     document.getElementById("pred"+i).textContent=clock(s+pmin*pt[1]+rest);
+   } else {
+     document.getElementById("pred"+i).textContent="--:--";
+   }
+ });
+ goal.textContent = rest!==null ? clock(s+pmin*TOTAL+rest) : "--:--";
+}
+document.querySelectorAll("select").forEach(e=>e.addEventListener("change",calc));
+calc();
+</script></body></html>
